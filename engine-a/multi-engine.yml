@@ -1,0 +1,26 @@
+# Additional configuration for the CIB seven webclient on engine-a.
+# Loaded via -Dspring.config.additional-location and overrides only these values
+# from the bundled /camunda/configuration/default.yml.
+#
+# Docs: https://docs.cibseven.org/manual/2.2/webapps/configuration-options/  (section "Multi-engine support")
+
+cibseven:
+  webclient:
+    engineRest:
+      # Engine in the same container as the webclient
+      url: http://localhost:8080
+      path: /engine-rest
+      displayName: Engine A
+      tooltip: Local engine (same container as the webclient)
+
+      # Additional engines. IMPORTANT: these URLs are called by the webclient SERVER, not the browser.
+      # In Docker, use the service name, not localhost.
+      additionalEngineRest:
+        - url: http://engine-b:8080
+          path: /engine-rest
+          displayName: Engine B
+          tooltip: Remote engine (own container, own database)
+          # Must exactly match the secret Engine B uses to validate tokens
+          # (there: CIBSEVEN_WEBCLIENT_AUTHENTICATION_JWTSECRET).
+          # If this entry is missing, the webclient signs with Engine A's secret -> 401 on Engine B.
+          jwtSecret: ${ENGINE_B_JWT_SECRET}

@@ -1,0 +1,2 @@
+# Locally generated secrets (./generate-secrets.sh)
+.env

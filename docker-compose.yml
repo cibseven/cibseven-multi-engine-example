@@ -1,0 +1,67 @@
+# CIB seven 2.2.0 – one webclient, two separate engines
+#
+#   Browser ──► engine-a :8080  (webclient + REST + invoice example)
+#                  │
+#                  └─ server-side ──► engine-b :8080 (REST only, own process)
+#
+# Start:  ./generate-secrets.sh && docker compose up -d --wait
+# UI:     http://localhost:8080/webapp   (demo / demo)
+
+name: cibseven-multi-engine
+
+x-common: &common
+  image: ${CIBSEVEN_IMAGE:-cibseven/cibseven:run-2.2.0}
+  restart: unless-stopped
+  healthcheck:
+    # GET /engine is the only REST call that does not require authentication
+    test: ["CMD", "curl", "-fs", "http://localhost:8080/engine-rest/engine"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 60s
+
+services:
+
+  engine-a:
+    <<: *common
+    container_name: engine-a
+    # Webclient (--webapps), REST API (--rest) and invoice example (--example)
+    command: ["./cibseven.sh", "--webapps", "--rest", "--example"]
+    ports:
+      - "8080:8080"
+    environment:
+      # Secure the REST API with JWT (composite = JWT, fallback to HTTP Basic)
+      CAMUNDA_BPM_RUN_AUTH_ENABLED: "true"
+      CAMUNDA_BPM_RUN_AUTH_AUTHENTICATION: composite
+      # Engine A's own secret. Read by
+      #  - the engine (token validation)    -> only from env variable / system property / cibseven-webclient.properties
+      #  - the webclient (token creation for Engine A)
+      CIBSEVEN_WEBCLIENT_AUTHENTICATION_JWTSECRET: ${ENGINE_A_JWT_SECRET:?ENGINE_A_JWT_SECRET is not set – run ./generate-secrets.sh first}
+      # Engine B's secret – only so that multi-engine.yml can reference it via ${...}
+      ENGINE_B_JWT_SECRET: ${ENGINE_B_JWT_SECRET:?ENGINE_B_JWT_SECRET is not set – run ./generate-secrets.sh first}
+      # Load an additional configuration file without replacing the bundled default.yml
+      JAVA_OPTS: "-Dspring.config.additional-location=file:/camunda/configuration/multi-engine.yml"
+      AI_AGENT_ENABLED: "false"
+    volumes:
+      - ./engine-a/multi-engine.yml:/camunda/configuration/multi-engine.yml:ro
+    depends_on:
+      engine-b:
+        condition: service_healthy
+
+  engine-b:
+    <<: *common
+    container_name: engine-b
+    # REST API only – Engine B is operated exclusively through the webclient on Engine A
+    command: ["./cibseven.sh", "--rest"]
+    ports:
+      - "8081:8080"   # only for smoke-test.sh / direct REST calls from the host
+    environment:
+      CAMUNDA_BPM_RUN_AUTH_ENABLED: "true"
+      CAMUNDA_BPM_RUN_AUTH_AUTHENTICATION: composite
+      # Engine B's own secret. Must be identical to
+      # additionalEngineRest[].jwtSecret in engine-a/multi-engine.yml
+      CIBSEVEN_WEBCLIENT_AUTHENTICATION_JWTSECRET: ${ENGINE_B_JWT_SECRET:?ENGINE_B_JWT_SECRET is not set – run ./generate-secrets.sh first}
+      AI_AGENT_ENABLED: "false"
+    volumes:
+      # CIB seven Run automatically deploys everything in this folder on startup
+      - ./engine-b/resources:/camunda/configuration/resources:ro
