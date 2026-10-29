@@ -21,6 +21,10 @@ docker compose up -d --wait
 
 Then open `http://localhost:8080/webapp` in the browser, log in with `demo` / `demo` and select "Engine B" in the top menu. Engine B hosts the process "Hello from Engine B", Engine A hosts the invoice example.
 
+![Webclient with Engine A selected: the invoice example processes](docs/screenshot-engine-a.png)
+
+![Same webclient with Engine B selected: the process "Hello from Engine B"](docs/screenshot-engine-b.png)
+
 `.env` is excluded from the repository via `.gitignore`. To generate new secrets, run `./generate-secrets.sh`, then `docker compose up -d --force-recreate --wait`.
 
 ## The relevant configuration
